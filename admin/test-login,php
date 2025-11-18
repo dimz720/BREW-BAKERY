@@ -1,0 +1,142 @@
+<?php
+require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../includes/functions.php';
+
+echo "<h1>🔧 Brew Bakery - Login Diagnostic Tool</h1>";
+echo "<hr>";
+
+// 1. Cek koneksi database
+echo "<h2>1. Koneksi Database</h2>";
+if ($conn) {
+    echo "✅ Koneksi database berhasil<br>";
+} else {
+    echo "❌ Koneksi database gagal: " . mysqli_connect_error() . "<br>";
+    die();
+}
+
+// 2. Cek tabel admins
+echo "<h2>2. Cek Tabel Admins</h2>";
+$result = $conn->query("SELECT * FROM admins");
+if ($result) {
+    $count = $result->num_rows;
+    echo "✅ Tabel admins ditemukan<br>";
+    echo "📊 Jumlah admin: <strong>" . $count . "</strong><br>";
+    
+    if ($count > 0) {
+        echo "<table border='1' cellpadding='10' style='margin-top: 10px; border-collapse: collapse;'>";
+        echo "<tr><th>ID</th><th>Nama</th><th>Email</th><th>Password Hash</th><th>Created At</th></tr>";
+        while ($row = $result->fetch_assoc()) {
+            echo "<tr>";
+            echo "<td>" . $row['id'] . "</td>";
+            echo "<td>" . $row['nama'] . "</td>";
+            echo "<td>" . $row['email'] . "</td>";
+            echo "<td>" . substr($row['password'], 0, 30) . "...</td>";
+            echo "<td>" . $row['created_at'] . "</td>";
+            echo "</tr>";
+        }
+        echo "</table>";
+    } else {
+        echo "⚠️ Tidak ada data admin di database<br>";
+    }
+} else {
+    echo "❌ Tabel admins tidak ditemukan: " . $conn->error . "<br>";
+}
+
+// 3. Test fungsi password
+echo "<h2>3. Test Fungsi Password</h2>";
+$test_password = "admin123";
+$test_hash = hashPassword($test_password);
+echo "Password: <strong>" . $test_password . "</strong><br>";
+echo "Hash: <strong>" . $test_hash . "</strong><br>";
+echo "Verify: <strong>" . (verifyPassword($test_password, $test_hash) ? "✅ Success" : "❌ Failed") . "</strong><br>";
+
+// 4. Form Reset Password
+echo "<h2>4. Reset Password Admin</h2>";
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset'])) {
+    $email = $_POST['email'];
+    $new_password = $_POST['new_password'];
+    
+    // Cek apakah email ada
+    $check = $conn->query("SELECT * FROM admins WHERE email = '$email'");
+    if ($check->num_rows > 0) {
+        $hashed = hashPassword($new_password);
+        $update = $conn->query("UPDATE admins SET password = '$hashed' WHERE email = '$email'");
+        
+        if ($update) {
+            echo "<div style='background: #d4edda; padding: 15px; border: 1px solid #c3e6cb; border-radius: 5px; margin: 10px 0;'>";
+            echo "✅ <strong>Password berhasil direset!</strong><br>";
+            echo "Email: <strong>" . $email . "</strong><br>";
+            echo "Password Baru: <strong>" . $new_password . "</strong><br>";
+            echo "<a href='../auth/login-admin.php' style='color: #155724; font-weight: bold;'>Login Sekarang</a>";
+            echo "</div>";
+        } else {
+            echo "<div style='background: #f8d7da; padding: 15px; border: 1px solid #f5c6cb; border-radius: 5px;'>";
+            echo "❌ Error: " . $conn->error;
+            echo "</div>";
+        }
+    } else {
+        echo "<div style='background: #fff3cd; padding: 15px; border: 1px solid #ffeaa7; border-radius: 5px;'>";
+        echo "⚠️ Email tidak ditemukan di database!";
+        echo "</div>";
+    }
+}
+
+// 5. Form Create Admin (jika belum ada)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create'])) {
+    $nama = $_POST['nama'];
+    $email = $_POST['email'];
+    $password = $_POST['password'];
+    $telepon = $_POST['telepon'];
+    
+    // Cek apakah email sudah ada
+    $check = $conn->query("SELECT * FROM admins WHERE email = '$email'");
+    if ($check->num_rows > 0) {
+        echo "<div style='background: #fff3cd; padding: 15px; border: 1px solid #ffeaa7; border-radius: 5px;'>";
+        echo "⚠️ Email sudah terdaftar! Gunakan form Reset Password.";
+        echo "</div>";
+    } else {
+        $hashed = hashPassword($password);
+        $insert = $conn->query("INSERT INTO admins (nama, email, password, telepon, created_at) VALUES ('$nama', '$email', '$hashed', '$telepon', NOW())");
+        
+        if ($insert) {
+            echo "<div style='background: #d4edda; padding: 15px; border: 1px solid #c3e6cb; border-radius: 5px; margin: 10px 0;'>";
+            echo "✅ <strong>Admin berhasil dibuat!</strong><br>";
+            echo "Nama: <strong>" . $nama . "</strong><br>";
+            echo "Email: <strong>" . $email . "</strong><br>";
+            echo "Password: <strong>" . $password . "</strong><br>";
+            echo "<a href='../auth/login-admin.php' style='color: #155724; font-weight: bold;'>Login Sekarang</a>";
+            echo "</div>";
+        } else {
+            echo "<div style='background: #f8d7da; padding: 15px; border: 1px solid #f5c6cb; border-radius: 5px;'>";
+            echo "❌ Error: " . $conn->error;
+            echo "</div>";
+        }
+    }
+}
+?>
+
+<form method="POST" style="background: #f8f9fa; padding: 20px; border-radius: 5px; margin: 10px 0;">
+    <h3>Reset Password Admin</h3>
+    <label>Email Admin:</label><br>
+    <input type="email" name="email" required style="width: 300px; padding: 8px; margin: 5px 0;"><br>
+    <label>Password Baru:</label><br>
+    <input type="text" name="new_password" value="admin123" required style="width: 300px; padding: 8px; margin: 5px 0;"><br>
+    <button type="submit" name="reset" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 10px;">Reset Password</button>
+</form>
+
+<form method="POST" style="background: #fff3cd; padding: 20px; border-radius: 5px; margin: 10px 0;">
+    <h3>Buat Admin Baru (Jika Belum Ada)</h3>
+    <label>Nama:</label><br>
+    <input type="text" name="nama" value="Administrator" required style="width: 300px; padding: 8px; margin: 5px 0;"><br>
+    <label>Email:</label><br>
+    <input type="email" name="email" value="admin@brewbakery.com" required style="width: 300px; padding: 8px; margin: 5px 0;"><br>
+    <label>Password:</label><br>
+    <input type="text" name="password" value="admin123" required style="width: 300px; padding: 8px; margin: 5px 0;"><br>
+    <label>Telepon:</label><br>
+    <input type="text" name="telepon" value="081234567890" required style="width: 300px; padding: 8px; margin: 5px 0;"><br>
+    <button type="submit" name="create" style="padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 10px;">Buat Admin</button>
+</form>
+
+<hr>
+<p style="color: red;"><strong>⚠️ PENTING: HAPUS FILE INI SETELAH SELESAI!</strong></p>
+<p><a href="../auth/login-admin.php">Kembali ke Login Admin</a></p>
